@@ -111,8 +111,6 @@ Resources:
         - LambdaFunctionRole
         - Arn
       Runtime: nodejs10.x
-  ReportResultSnsTopic:
-    Type: 'AWS::SNS::Topic'
   LambdaFunctionRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -177,14 +175,7 @@ Resources:
                   - SellStockLambda
                   - Arn
                 Effect: Allow
-        - PolicyName: StockTradingStateMachineRolePolicy5
-          PolicyDocument:
-            Statement:
-              - Action:
-                  - 'sns:Publish'
-                Resource: !Ref ReportResultSnsTopic
-                Effect: Allow
-        - PolicyName: StockTradingStateMachineRolePolicy6
+        - PolicyName: StockTradingStateMachineRolePolicy4
           PolicyDocument:
             Statement:
               - Action:
@@ -200,7 +191,6 @@ Resources:
         GenerateBuySellRecommendationLambdaArn: !GetAtt 
           - GenerateBuySellRecommendationLambda
           - Arn
-        ReportResultSnsTopicArn: !Ref ReportResultSnsTopic
         SellStockLambdaArn: !GetAtt 
           - SellStockLambda
           - Arn
