@@ -65,17 +65,6 @@ Resources:
         - LambdaFunctionRole
         - Arn
       Runtime: nodejs10.x
-  LambdaFunctionEventSourceMapping:
-    Type: 'AWS::Lambda::EventSourceMapping'
-    Properties:
-      BatchSize: 10
-      Enabled: true
-      EventSourceArn: !GetAtt 
-        - RequestHumanApprovalSqs
-        - Arn
-      FunctionName: !GetAtt 
-        - ApproveSqsLambda
-        - Arn
   SellStockLambda:
     Type: 'AWS::Lambda::Function'
     Properties:
@@ -104,53 +93,6 @@ Resources:
           };
       Role: !GetAtt 
         - LambdaFunctionRole
-        - Arn
-      Runtime: nodejs10.x
-  ApproveSqsLambda:
-    Type: 'AWS::Lambda::Function'
-    Properties:
-      Handler: index.lambdaHandler
-      Code:
-        ZipFile: |
-          const aws = require('aws-sdk');
-
-          /**
-          * Sample Lambda function that will automatically approve any task submitted to sqs by state machine.
-          * For demonstration purposes this Lambda function simply returns a random integer between 0 and 100 as the stock price.
-          * 
-          * @param {Object} event - Input event to the Lambda function
-          * @param {Object} context - Lambda Context runtime methods and attributes
-          * 
-          */
-          exports.lambdaHandler = (event, context, callback) => {
-              const stepfunctions = new aws.StepFunctions();
-
-              // For every record in sqs queue
-              for (const record of event.Records) {
-                  const messageBody = JSON.parse(record.body);
-                  const taskToken = messageBody.TaskToken;
-
-                  const params = {
-                      output: "\"approved\"",
-                      taskToken: taskToken
-                  };
-
-                  console.log(`Calling Step Functions to complete callback task with params ${JSON.stringify(params)}`);
-
-                  // Approve
-                  stepfunctions.sendTaskSuccess(params, (err, data) => {
-                      if (err) {
-                          console.error(err.message);
-                          callback(err.message);
-                          return;
-                      }
-                      console.log(data);
-                      callback(null);
-                  });
-              }
-          };
-      Role: !GetAtt 
-        - ManualApprovalFunctionRole
         - Arn
       Runtime: nodejs10.x
   ReportResultSnsTopic:
@@ -226,50 +168,6 @@ Resources:
                   - 'sns:Publish'
                 Resource: !Ref ReportResultSnsTopic
                 Effect: Allow
-  RequestHumanApprovalSqs:
-    Type: 'AWS::SQS::Queue'
-  ManualApprovalFunctionRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      Policies:
-        - PolicyName: SQSReceiveMessagePolicy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Action:
-                  - 'sqs:ReceiveMessage'
-                  - 'sqs:DeleteMessage'
-                  - 'sqs:GetQueueAttributes'
-                  - 'sqs:ChangeMessageVisibility'
-                Resource: !GetAtt 
-                  - RequestHumanApprovalSqs
-                  - Arn
-                Effect: Allow
-        - PolicyName: CloudWatchLogsPolicy
-          PolicyDocument:
-            Statement:
-              - Action:
-                  - 'logs:CreateLogGroup'
-                  - 'logs:CreateLogStream'
-                  - 'logs:PutLogEvents'
-                Resource: !Sub 'arn:${AWS::Partition}:logs:*:*:*'
-                Effect: Allow
-        - PolicyName: StatesExecutionPolicy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Action:
-                  - 'states:SendTaskSuccess'
-                  - 'states:SendTaskFailure'
-                Resource: !Ref StockTradingStateMachine
-                Effect: Allow
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Action: 'sts:AssumeRole'
-            Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
   StockTradingStateMachine:
     Type: 'AWS::StepFunctions::StateMachine'
     Properties:
@@ -277,7 +175,6 @@ Resources:
         GenerateBuySellRecommendationLambdaArn: !GetAtt 
           - GenerateBuySellRecommendationLambda
           - Arn
-        RequestHumanApprovalSqsUrl: !Ref RequestHumanApprovalSqs
         ReportResultSnsTopicArn: !Ref ReportResultSnsTopic
         SellStockLambdaArn: !GetAtt 
           - SellStockLambda
